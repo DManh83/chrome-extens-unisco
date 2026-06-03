@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from "axios"
 
-const username = "FANYUAN"
+const name = "FANYUAN"
 const password = "2025Fy@*"
 
-function waitUntil(condition: () => boolean, callback: () => void, interval = 3000) {
+async function waitUntil(condition: () => boolean, callback: () => void, interval = 3000) {
     const timer = setInterval(() => {
         if (condition()) {
             clearInterval(timer)
@@ -19,7 +19,7 @@ chrome.storage.local.get(["started"], (result) => {
     }
 })
 
-function boot() {
+async function boot() {
     const url = location.href
 
     console.log("Boot:", url)
@@ -36,12 +36,12 @@ function boot() {
 
     if (url === "https://www.unisco.com.cn/#/exportDocuments/manifestEntry") {
         console.log("Run waitManifestReady")
-        waitManifestReady()
+        await waitManifestReady()
         return
     }
 
     console.log("Redirect to manifest")
-    redirectManifest()
+    await redirectManifest()
 }
 
 function login() {
@@ -57,7 +57,7 @@ function login() {
         return
     }
 
-    setNativeValue(user, username)
+    setNativeValue(user, name)
 
     setNativeValue(pass, password)
 
@@ -67,59 +67,59 @@ function login() {
 }
 
 function waitCaptchaSolved() {
-    const timer = setInterval(() => {
+    const timer = setInterval(async () => {
         const captcha = document.querySelector(".verifybox")
 
         const stillLoginPage = location.href.includes("/#/login")
 
         if (!stillLoginPage) {
             clearInterval(timer)
-            redirectManifest()
+            await redirectManifest()
             return
         }
 
         if (!captcha) {
             clearInterval(timer)
-            waitLoginSuccess()
+            await waitLoginSuccess()
         }
     }, 1000)
 }
 
-function waitLoginSuccess() {
-    waitUntil(
+async function waitLoginSuccess() {
+    await waitUntil(
         () => !location.href.includes("/#/login"),
 
-        () => {
+        async () => {
             console.log("Login success")
 
-            redirectManifest()
+            await redirectManifest()
         }
     )
 }
 
-function redirectManifest() {
+async function redirectManifest() {
     const manifestUrl = "https://www.unisco.com.cn/#/exportDocuments/manifestEntry"
 
     if (location.href === manifestUrl) {
-        waitManifestReady()
+        await waitManifestReady()
         return
     }
 
     location.href = manifestUrl
 
-    waitUntil(
+    await waitUntil(
         () => location.href === manifestUrl,
 
-        () => {
+        async () => {
             console.log("Arrived manifest page")
 
-            waitManifestReady()
+            await waitManifestReady()
         }
     )
 }
 
-function waitManifestReady() {
-    waitUntil(
+async function waitManifestReady() {
+    await waitUntil(
         () => {
             const btns = document.querySelectorAll(".el-button.el-button--primary") as NodeListOf<HTMLElement>
 
@@ -130,246 +130,45 @@ function waitManifestReady() {
             const btns = document.querySelectorAll(".el-button.el-button--primary") as NodeListOf<HTMLElement>
 
             btns[2]?.click()
-            chrome.storage.local.get(["blNo", "carrierCode"], (result) => {
-                importData(result.blNo as string, result.carrierCode as string)
+            chrome.storage.local.get(["blNo", "carrierCode", "username"], (result) => {
+                importData(result.blNo as string, result.carrierCode as string, result.username as string)
             })
         }
     )
 }
 
 async function getData(blNo: string) {
-    // const data = await axios.get(`https://www.dadaex.cn/api/vn/order/getManifestInfo?blNo=${blNo}`)
-    const data = await axios.get(`http://localhost:3001/vn/order/getManifestInfo?blNo=${blNo}`)
+    const data = await axios.get(`https://www.dadaex.cn/api/vn/order/getManifestInfo?blNo=${blNo}`)
     if (!data.data.data) {
         return null
     }
+    if (data.data.data.uploadPortData.nameEn === "BUSAN") {
+        data.data.data.uploadPortData.nameEn = "PUSAN"
+    }
+    if (data.data.data.aimPortData.nameEn === "BUSAN") {
+        data.data.data.aimPortData.nameEn = "PUSAN"
+    }
+
+    for (const good of data.data.data.cdgoods) {
+        const unit = good.unit?.trim()?.toUpperCase()
+
+        if (!unit) continue
+
+        if (unit.endsWith("S")) {
+            good.unit = unit.slice(0, -1)
+        }
+    }
+    for (const con of data.data.data.cdCon) {
+        con.cType = getCType(con.cType)
+        if (con.cType.includes("HQ")) {
+            con.cType = con.cType.replace("HQ", "HC")
+        }
+        con.size = con.cType.match(/\d+/)?.[0] || ""
+        con.type = con.cType.match(/[A-Za-z]+/)?.[0] || ""
+    }
+
     return data.data.data
 }
-
-// const dataTest = {
-//     id: 16792,
-//     status: false,
-//     oid: 122196,
-//     ebId: 0,
-//     blNo: "802220087",
-//     shipName: "ERASMUS PASSION",
-//     voyage: "622S",
-//     loadCode: "CNSHA",
-//     loadPort: 599,
-//     uploadCode: "THLCH",
-//     uploadPort: 3174,
-//     aimPort: 3174,
-//     aimPortCode: "THLCH",
-//     payType: false,
-//     transportTerms: "1",
-//     cdstatus: 0,
-//     cderror: null,
-//     cdreceipt: null,
-//     subNumber: 0,
-//     qy: 0,
-//     msgType: 0,
-//     carrierCode: "MCC",
-//     createTime: "2026-05-29T06:16:13.000Z",
-//     updateTime: "2026-05-29T06:16:25.000Z",
-//     cdCon: [
-//         {
-//             id: 233397,
-//             oid: 0,
-//             lclid: 0,
-//             cabinId: 16792,
-//             vC: 0,
-//             ladingNub: null,
-//             type: false,
-//             cType: 2,
-//             boxNub: "TGBU8897976",
-//             sealNUb: "CN4802340",
-//             price: null,
-//             self: false,
-//             overweight: "0.000",
-//             overhigh: false,
-//             containnerMark: false,
-//             hostMark: false,
-//             specialMsg: null,
-//             remark: null,
-//             responsible: null,
-//             method: false,
-//             unit: null,
-//             weighing: null,
-//             verifyNub: null,
-//             signature: null,
-//             signatureEm: null,
-//             amount: 36,
-//             weight: "8568.000",
-//             volume: "46.901",
-//             czbs: "0.000",
-//             basePrice: null,
-//             freetimePrice: "0.00",
-//             demurrage: null,
-//             combine: null,
-//             detention: null,
-//             qy: 0,
-//             refer: 0,
-//             vgmDate: null,
-//             openPrice: "0.00",
-//             createTime: "2026-05-29T06:16:13.000Z",
-//             updateTime: "2026-05-29T06:16:25.000Z",
-//         },
-//         {
-//             id: 233398,
-//             oid: 0,
-//             lclid: 0,
-//             cabinId: 16793,
-//             vC: 0,
-//             ladingNub: null,
-//             type: false,
-//             cType: 2,
-//             boxNub: "TGBU8897977",
-//             sealNUb: "CN4802341",
-//             price: null,
-//             self: false,
-//             overweight: "0.000",
-//             overhigh: false,
-//             containnerMark: false,
-//             hostMark: false,
-//             specialMsg: null,
-//             remark: null,
-//             responsible: null,
-//             method: false,
-//             unit: null,
-//             weighing: null,
-//             verifyNub: null,
-//             signature: null,
-//             signatureEm: null,
-//             amount: 36,
-//             weight: "8568.000",
-//             volume: "46.901",
-//             czbs: "0.000",
-//             basePrice: null,
-//             freetimePrice: "0.00",
-//             demurrage: null,
-//             combine: null,
-//             detention: null,
-//             qy: 0,
-//             refer: 0,
-//             vgmDate: null,
-//             openPrice: "0.00",
-//             createTime: "2026-05-29T06:16:13.000Z",
-//             updateTime: "2026-05-29T06:16:25.000Z",
-//         },
-//     ],
-//     loadPortData: {
-//         id: 599,
-//         name: "上海",
-//         nameEn: "SHANGHAI",
-//     },
-//     uploadPortData: {
-//         id: 3174,
-//         name: "林查班",
-//         nameEn: "LAEM CHABANG",
-//     },
-//     aimPortData: {
-//         id: 3174,
-//         name: "林查班",
-//         nameEn: "LAEM CHABANG",
-//     },
-//     cabContacts: [
-//         {
-//             id: 386251,
-//             oid: 0,
-//             cabinId: 16792,
-//             lclid: 0,
-//             type: 2,
-//             master: "TCC LOGISTICS LIMITED",
-//             address: "LUMPINI TOWER,3RD FLOOR,NO.1168/5,RAMA 4ROAD,TUNGMAHAMEK,SATHORN,BANGKOK 10120,THAILAND",
-//             firmCode: null,
-//             country: "TH",
-//             phone: "66(0)2 0267111",
-//             aeo: null,
-//             spName: null,
-//             spType: "0",
-//             spContact: null,
-//             qy: 0,
-//             createTime: "2026-05-29T06:16:13.000Z",
-//             updateTime: "2026-05-29T06:16:25.000Z",
-//         },
-//         {
-//             id: 386250,
-//             oid: 0,
-//             cabinId: 16792,
-//             lclid: 0,
-//             type: true,
-//             master: "TCC LOGISTICS LIMITED",
-//             address: "LUMPINI TOWER,3RD FLOOR,NO.1168/5,RAMA 4ROAD,TUNGMAHAMEK,SATHORN,BANGKOK 10120,THAILAND",
-//             firmCode: null,
-//             country: "TH",
-//             phone: "66(0)2 0267111",
-//             aeo: null,
-//             spName: null,
-//             spType: "0",
-//             spContact: null,
-//             qy: 0,
-//             createTime: "2026-05-29T06:16:13.000Z",
-//             updateTime: "2026-05-29T06:16:25.000Z",
-//         },
-//         {
-//             id: 386249,
-//             oid: 0,
-//             cabinId: 16792,
-//             lclid: 0,
-//             type: false,
-//             master: "REX INTERNATIONAL LOGISTICS CO.,LTD.CHONGQING BRANCH",
-//             address: "ROOM.1706,BUILDING 1,LONGHU NEW FIRST STREET,JIANGBEI DISTRICT,CHONGQING,CHINA",
-//             firmCode: null,
-//             country: "CN",
-//             phone: "86-23-6776 2322",
-//             aeo: null,
-//             spName: null,
-//             spType: "0",
-//             spContact: null,
-//             qy: 0,
-//             createTime: "2026-05-29T06:16:13.000Z",
-//             updateTime: "2026-05-29T06:16:25.000Z",
-//         },
-//     ],
-//     cdgoods: [
-//         {
-//             id: 128947,
-//             oid: 0,
-//             cabinId: 16792,
-//             lclid: 0,
-//             shantou: "WTP-HUB26052601",
-//             name: "JBW CASE ASSY",
-//             description: null,
-//             cargoType: false,
-//             amount: "36.000",
-//             unit: "PALLETS",
-//             weight: "8568.000",
-//             volume: "46.901",
-//             hscode: null,
-//             dangerClass: null,
-//             unNub: null,
-//             dangerCode: null,
-//             dangerPoint: "0",
-//             packType: null,
-//             packDesc: null,
-//             packWeight: null,
-//             packSize: null,
-//             grossWeight: null,
-//             quarantineCode: null,
-//             quarantineName: null,
-//             sign: null,
-//             qy: 0,
-//             conid: null,
-//             exigencyName: null,
-//             exigencyPhone: null,
-//             exigencyEmail: null,
-//             exigencyFax: null,
-//             mp: false,
-//             createTime: "2026-05-29T06:16:13.000Z",
-//             updateTime: "2026-05-29T06:16:25.000Z",
-//         },
-//     ],
-// }
 
 function getCType(cType: number) {
     const containerNumberMap = {
@@ -397,7 +196,7 @@ function getCType(cType: number) {
     return containerNumberMap[cType as keyof typeof containerNumberMap]
 }
 
-async function importData(blNo: string, carrierCode: string) {
+async function importData(blNo: string, carrierCode: string, username: string) {
     const ystObj = () => {
         return {
             1: "CY-CY",
@@ -438,12 +237,12 @@ async function importData(blNo: string, carrierCode: string) {
         return
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
         const btns = document.querySelectorAll(".el-button.el-button--primary") as NodeListOf<HTMLElement>
 
         btns[1]?.click()
 
-        waitUntil(
+        await waitUntil(
             () => {
                 return location.href.includes("/newManifest?flag=0&billId=0")
             },
@@ -452,24 +251,24 @@ async function importData(blNo: string, carrierCode: string) {
                 try {
                     // ship name
                     const shipNameFull = `${data.shipName}/${data.voyage}`
-                    await chooseSelectByLabel("船名航次", data.shipName, shipNameFull, 13)
+                    await chooseSelectByLabel("船名航次", data.shipName, shipNameFull, 2)
                     // Loading port
-                    await chooseSelectByLabel("装货港", data.loadCode, `${data.loadCode}/${data.loadPortData.nameEn}`, 14)
+                    await chooseSelectByLabel("装货港", data.loadCode, `${data.loadCode}/${data.loadPortData.nameEn}`, 3)
                     // Discharge port
-                    await chooseSelectByLabel("卸货港", data.uploadCode, `${data.uploadCode}/${data.uploadPortData.nameEn}`, 15)
+                    await chooseSelectByLabel("卸货港", data.uploadCode, `${data.uploadCode}/${data.uploadPortData.nameEn}`, 4)
                     // Payment method
-                    await selectPaymentMethod("付款方式", "PREPAID", 16)
+                    await selectPaymentMethod("付款方式", "PREPAID", 5)
                     // Carrier
-                    await selectPaymentMethod("提单承运人", carrierCode, 17)
+                    await selectPaymentMethod("提单承运人", carrierCode, 6)
                     // BL No
                     const blNoInput = document.querySelector(".el-input__inner") as HTMLInputElement
                     setNativeValue(blNoInput, data.blNo)
                     // Destination port
-                    await chooseSelectByLabel("目的港", data.aimPortCode, `${data.aimPortCode}/${data.aimPortData.nameEn}`, 18)
+                    await chooseSelectByLabel("目的港", data.aimPortCode, `${data.aimPortCode}/${data.aimPortData.nameEn}`, 7)
                     // Service terms
-                    await selectPaymentMethod("服务条款", transportTerm, 19)
+                    await selectPaymentMethod("服务条款", transportTerm, 8)
                     // BL type
-                    await selectPaymentMethod("提单性质", "正常", 20)
+                    await selectPaymentMethod("提单性质", "正常", 9)
                     // Shipper
                     await setTextareaByLabel("发货人", getContactByType(false, data)?.master || "")
                     // Consignee
@@ -488,7 +287,7 @@ async function importData(blNo: string, carrierCode: string) {
                         "发货人国家代码",
                         getContactByType(false, data)?.country || "",
                         getContactByType(false, data)?.country || "",
-                        21
+                        10
                     )
                     // Consignee country code
                     // await setInputByLabel("收货人国家代码", getContactByType(2)?.country || "")
@@ -496,7 +295,7 @@ async function importData(blNo: string, carrierCode: string) {
                         "收货人国家代码",
                         getContactByType(2, data)?.country || "",
                         getContactByType(2, data)?.country || "",
-                        22
+                        11
                     )
                     // Notify party country code
                     // await setInputByLabel("通知人国家代码", getContactByType(true)?.country || "")
@@ -504,7 +303,7 @@ async function importData(blNo: string, carrierCode: string) {
                         "通知人国家代码",
                         getContactByType(true, data)?.country || "",
                         getContactByType(true, data)?.country || "",
-                        23
+                        12
                     )
                     // Shipper phone
                     await setInputByLabel("发货人电话", getContactByType(false, data)?.phone || "")
@@ -515,7 +314,7 @@ async function importData(blNo: string, carrierCode: string) {
 
                     // Goods
                     for (const good of data.cdgoods) {
-                        waitUntil(
+                        await waitUntil(
                             () => !!document.querySelector(".el-button.el-button--primary.el-button--small"),
                             () => {
                                 const buttonNewContact = document.querySelector(".el-button.el-button--primary.el-button--small") as HTMLElement
@@ -524,7 +323,7 @@ async function importData(blNo: string, carrierCode: string) {
                         )
 
                         // Amount
-                        waitUntil(
+                        await waitUntil(
                             () => {
                                 const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
                                     (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "件数"
@@ -541,7 +340,7 @@ async function importData(blNo: string, carrierCode: string) {
                             }
                         )
                         // Weight
-                        waitUntil(
+                        await waitUntil(
                             () => {
                                 const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
                                     (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "重量 KGS"
@@ -556,7 +355,8 @@ async function importData(blNo: string, carrierCode: string) {
                                 await setInputByLabel("重量 KGS", good.weight)
                             }
                         )
-                        waitUntil(
+                        // Volume
+                        await waitUntil(
                             () => {
                                 const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
                                     (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "体积(立方米)"
@@ -572,7 +372,7 @@ async function importData(blNo: string, carrierCode: string) {
                             }
                         )
                         // Goods name
-                        waitUntil(
+                        await waitUntil(
                             () => {
                                 const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
                                     (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "品名"
@@ -588,7 +388,7 @@ async function importData(blNo: string, carrierCode: string) {
                             }
                         )
                         // Mark
-                        waitUntil(
+                        await waitUntil(
                             () => {
                                 const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
                                     (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "唛头"
@@ -604,7 +404,7 @@ async function importData(blNo: string, carrierCode: string) {
                             }
                         )
                         // Pack type
-                        waitUntil(
+                        await waitUntil(
                             () => {
                                 const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
                                     (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "包装类型名称"
@@ -616,15 +416,14 @@ async function importData(blNo: string, carrierCode: string) {
                                 return true
                             },
                             async () => {
-                                if (good.unit === "PALLETS") {
-                                    await chooseSelectByLabel("包装类型名称", "PALLET", "PALLET", 24)
-                                } else {
-                                    await chooseSelectByLabel("包装类型名称", good.unit, good.unit, 24)
-                                }
+                                const select = document.querySelectorAll(".el-popper.is-pure.is-light.el-select__popper") as NodeListOf<HTMLElement>
+                                const index = select.length - 1
+                                await chooseSelectByLabel("包装类型名称", good.unit, good.unit, index)
                             }
                         )
 
-                        waitUntil(
+                        // Cargo type
+                        await waitUntil(
                             () => {
                                 const radio = document.querySelector(".el-radio") as HTMLElement
                                 return radio ? true : false
@@ -635,8 +434,8 @@ async function importData(blNo: string, carrierCode: string) {
                             }
                         )
 
-                        await sleep(10000)
-
+                        // await sleep(10000)
+                        // Save
                         const buttonCreate = Array.from(document.querySelectorAll(".el-button.el-button--primary.el-button--default")).find(
                             (item) => item.querySelector(".el-button__text--expand")?.textContent?.trim() === "保存"
                         ) as HTMLElement
@@ -646,11 +445,6 @@ async function importData(blNo: string, carrierCode: string) {
 
                     // containner_vgms
                     for (const container of data.cdCon) {
-                        const type = getCType(container.cType).match(/\d+/)?.[0] || ""
-                        const size = getCType(container.cType).match(/[A-Za-z]+/)?.[0] || ""
-                        console.log("size", size)
-                        console.log("type", type)
-
                         const buttonCreate = document.querySelector(".vxe-button.type--button.size--mini.theme--primary") as HTMLElement
                         console.log("buttonCreate", buttonCreate)
                         buttonCreate.click()
@@ -677,27 +471,26 @@ async function importData(blNo: string, carrierCode: string) {
                         input.click()
                         await sleep(1000)
 
+                        console.log("size", container.size)
+
                         const optionSize = Array.from(document.querySelectorAll(".vxe-select-option")).find(
-                            (x) => x.textContent === size
+                            (x) => x.textContent === container.size
                         ) as HTMLElement
 
                         console.log("optionSize", optionSize)
                         optionSize.click()
                         await sleep(1000)
 
+                        // Type
                         const clickSelectType = document.querySelector(".vxe-body--column.col_28") as HTMLElement
                         clickSelectType.click()
                         await sleep(500)
                         const selectType = document.querySelectorAll(".el-select__selection")[11] as HTMLInputElement
                         selectType.click()
                         console.log("selectType", selectType)
-                        await sleep(3000)
-                        if (type === "HQ") {
-                            await chooseSelect("HC", 25)
-                        } else {
-                            await chooseSelect(type, 25)
-                        }
-                        await sleep(2000)
+                        await sleep(1000)
+                        await chooseSelect(container.type, 25)
+                        await sleep(1000)
 
                         // status
                         const clickSelectStatus = document.querySelector(".vxe-body--column.col_29") as HTMLElement
@@ -739,6 +532,25 @@ async function importData(blNo: string, carrierCode: string) {
                         await sleep(500)
                     }
 
+                    await clickButtonByLabel("作为草稿保存")
+
+                    await sleep(3000)
+                    // Change status manifest
+                    const isSuccess = await changeStatusManifest(blNo)
+                    if (isSuccess) {
+                        console.log("Change status manifest success")
+                    } else {
+                        console.error("Change status manifest failed")
+                    }
+
+                    // Add log manifest
+                    const isSuccessLog = await addLogManifest(blNo, username, carrierCode)
+                    if (isSuccessLog) {
+                        console.log("Add log manifest success")
+                    } else {
+                        console.error("Add log manifest failed")
+                    }
+
                     chrome.storage.local.set({
                         started: false,
                     })
@@ -747,11 +559,6 @@ async function importData(blNo: string, carrierCode: string) {
                 }
             }
         )
-        // console.log("Import success")
-
-        // chrome.storage.local.set({
-        //     started: false,
-        // })
     }, 1000)
 }
 
@@ -784,19 +591,6 @@ function setNativeValue(element: HTMLInputElement, value: string | number) {
         })
     )
 }
-
-// function waitForInput() {
-//     return new Promise<HTMLInputElement>((resolve) => {
-//         const timer = setInterval(() => {
-//             const input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-
-//             if (input) {
-//                 clearInterval(timer)
-//                 resolve(input)
-//             }
-//         }, 200)
-//     })
-// }
 
 async function selectPaymentMethod(label: string, value: string, i: number) {
     const form = Array.from(document.querySelectorAll(".el-form-item")).find(
@@ -847,26 +641,50 @@ async function chooseSelectByLabel(label: string, code: string, full: string, i:
 
     setNativeValue(input, code)
 
-    await sleep(5000)
-    const selectPoppers = document.querySelectorAll(".el-popper.is-pure.is-light.el-select__popper") as NodeListOf<HTMLElement>
+    await sleep(500)
+    const selectPopper = await waitForSelectPopper(i)
 
-    const selectPopper = selectPoppers[i] as HTMLElement
-
-    const option = Array.from(selectPopper.querySelectorAll(".el-select-dropdown__item")).find((x) =>
-        x.textContent?.toUpperCase().includes(full.toUpperCase())
-    ) as HTMLElement
-
-    if (!option) throw Error(`missing ${full}`)
+    const option = await waitForOption(selectPopper, full)
 
     option.click()
 
     document.body.click()
+}
 
-    await sleep(1000)
+async function waitForSelectPopper(index: number, timeout = 10000): Promise<HTMLElement> {
+    const start = Date.now()
 
-    console.log("Selected", label, full)
+    while (Date.now() - start < timeout) {
+        const poppers = document.querySelectorAll(".el-popper.is-pure.is-light.el-select__popper") as NodeListOf<HTMLElement>
 
-    return true
+        const popper = poppers[index]
+
+        if (popper) {
+            return popper
+        }
+
+        await sleep(300)
+    }
+
+    throw new Error(`Missing select popper at index ${index}`)
+}
+
+async function waitForOption(selectPopper: HTMLElement, full: string, timeout = 15000): Promise<HTMLElement> {
+    const start = Date.now()
+
+    while (Date.now() - start < timeout) {
+        const option = Array.from(selectPopper.querySelectorAll(".el-select-dropdown__item")).find((x) =>
+            x.textContent?.toUpperCase().includes(full.toUpperCase())
+        ) as HTMLElement | undefined
+
+        if (option) {
+            return option
+        }
+
+        await sleep(300)
+    }
+
+    throw new Error(`Timeout waiting for option: ${full}`)
 }
 
 async function chooseSelect(value: string, i: number) {
@@ -951,4 +769,47 @@ async function setInputByLabel(labelText: string, value: string) {
 
 function getContactByType(type: boolean | number, data: any) {
     return data.cabContacts.find((x: any) => x.type === type)
+}
+
+async function clickButtonByLabel(labelText: string) {
+    const button = Array.from(document.querySelectorAll(".el-button.el-button--primary")).find(
+        (el) => el.textContent?.trim() === labelText
+    ) as HTMLElement
+
+    if (!button) {
+        throw new Error(`Button "${labelText}" not found`)
+    }
+
+    button.click()
+}
+
+async function changeStatusManifest(blNo: string) {
+    try {
+        const data = await axios.post(`https://www.dadaex.cn/api/vn/order/changeStatusManifest`, { blNo: blNo })
+        if (data.data.status === 1) return true
+        return false
+    } catch (error) {
+        console.error("Error:", error)
+        return false
+    }
+}
+
+async function addLogManifest(blNo: string, username: string, carrierCode: string) {
+    try {
+        const data = await axios.post(`https://www.dadaex.cn/api/vn/order/addLogManifest`, {
+            blNo: blNo,
+            username: username,
+            carrierCode: carrierCode,
+        })
+        if (data.data.status === 1) {
+            console.log("Add log manifest success")
+            return true
+        }
+        console.error("Add log manifest failed")
+        return false
+    } catch (error) {
+        console.error("Error:", error)
+        console.error("Add log manifest failed")
+        return false
+    }
 }
