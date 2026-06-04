@@ -13,7 +13,7 @@ function Popup() {
             setCarrierCode((result.carrierCode as string) || "")
             setUsername((result.username as string) || "")
         })
-    }, [blNo, carrierCode, username])
+    }, [])
 
     const start = () => {
         chrome.storage.local.set({
@@ -34,6 +34,9 @@ function Popup() {
                 const isUnisco = tab.url?.includes("unisco.com.cn")
 
                 const isManifest = tab.url === "https://www.unisco.com.cn/#/exportDocuments/manifestEntry"
+                console.log("tab.url", tab.url)
+                console.log("isManifest", isManifest)
+                console.log("isUnisco", isUnisco)
 
                 if (!isUnisco) {
                     chrome.tabs.create({

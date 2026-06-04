@@ -4,18 +4,24 @@ import axios from "axios"
 const name = "FANYUAN"
 const password = "2025Fy@*"
 
-async function waitUntil(condition: () => boolean, callback: () => void, interval = 3000) {
-    const timer = setInterval(() => {
+async function waitUntil(condition: () => boolean, timeout = 30000, interval = 500) {
+    const start = Date.now()
+
+    while (Date.now() - start < timeout) {
         if (condition()) {
-            clearInterval(timer)
-            callback()
+            return
         }
-    }, interval)
+
+        await sleep(interval)
+    }
+
+    throw new Error("Timeout")
 }
 
-chrome.storage.local.get(["started"], (result) => {
+chrome.storage.local.get(["started"], async (result) => {
     if (result.started) {
-        boot()
+        console.log("Boot started")
+        await boot()
     }
 })
 
@@ -86,15 +92,10 @@ function waitCaptchaSolved() {
 }
 
 async function waitLoginSuccess() {
-    await waitUntil(
-        () => !location.href.includes("/#/login"),
+    await waitUntil(() => !location.href.includes("/#/login"))
+    console.log("Login success")
 
-        async () => {
-            console.log("Login success")
-
-            await redirectManifest()
-        }
-    )
+    await redirectManifest()
 }
 
 async function redirectManifest() {
@@ -107,34 +108,24 @@ async function redirectManifest() {
 
     location.href = manifestUrl
 
-    await waitUntil(
-        () => location.href === manifestUrl,
+    await waitUntil(() => location.href === manifestUrl)
+    console.log("Arrived manifest page")
 
-        async () => {
-            console.log("Arrived manifest page")
-
-            await waitManifestReady()
-        }
-    )
+    await waitManifestReady()
 }
 
 async function waitManifestReady() {
-    await waitUntil(
-        () => {
-            const btns = document.querySelectorAll(".el-button.el-button--primary") as NodeListOf<HTMLElement>
+    console.log("Wait manifest ready")
+    await waitUntil(() => {
+        const btns = document.querySelectorAll(".el-button.el-button--primary") as NodeListOf<HTMLElement>
 
-            return btns.length >= 3
-        },
-
-        () => {
-            const btns = document.querySelectorAll(".el-button.el-button--primary") as NodeListOf<HTMLElement>
-
-            btns[2]?.click()
-            chrome.storage.local.get(["blNo", "carrierCode", "username"], (result) => {
-                importData(result.blNo as string, result.carrierCode as string, result.username as string)
-            })
-        }
-    )
+        return btns.length >= 3
+    })
+    const btns = document.querySelectorAll(".el-button.el-button--primary") as NodeListOf<HTMLElement>
+    btns[2]?.click()
+    chrome.storage.local.get(["blNo", "carrierCode", "username"], async (result) => {
+        await importData(result.blNo as string, result.carrierCode as string, result.username as string)
+    })
 }
 
 async function getData(blNo: string) {
@@ -242,323 +233,277 @@ async function importData(blNo: string, carrierCode: string, username: string) {
 
         btns[1]?.click()
 
-        await waitUntil(
-            () => {
-                return location.href.includes("/newManifest?flag=0&billId=0")
-            },
+        await waitUntil(() => {
+            return location.href.includes("/newManifest?flag=0&billId=0")
+        })
+        try {
+            // ship name
+            const shipNameFull = `${data.shipName}/${data.voyage}`
+            await chooseSelectByLabel("船名航次", data.shipName, shipNameFull, 2)
+            // Loading port
+            await chooseSelectByLabel("装货港", data.loadCode, `${data.loadCode}/${data.loadPortData.nameEn}`, 3)
+            // Discharge port
+            await chooseSelectByLabel("卸货港", data.uploadCode, `${data.uploadCode}/${data.uploadPortData.nameEn}`, 4)
+            // Payment method
+            await selectPaymentMethod("付款方式", "PREPAID", 5)
+            // Carrier
+            await selectPaymentMethod("提单承运人", carrierCode, 6)
+            // BL No
+            const blNoInput = document.querySelector(".el-input__inner") as HTMLInputElement
+            setNativeValue(blNoInput, data.blNo)
+            // Destination port
+            await chooseSelectByLabel("目的港", data.aimPortCode, `${data.aimPortCode}/${data.aimPortData.nameEn}`, 7)
+            // Service terms
+            await selectPaymentMethod("服务条款", transportTerm, 8)
+            // BL type
+            await selectPaymentMethod("提单性质", "正常", 9)
+            // Shipper
+            await setTextareaByLabel("发货人", getContactByType(false, data)?.master || "")
+            // Consignee
+            await setTextareaByLabel("收货人", getContactByType(2, data)?.master || "")
+            // Notify party
+            await setTextareaByLabel("通知人", getContactByType(true, data)?.master || "")
+            // Shipper address
+            await setInputByLabel("发货人地址", getContactByType(false, data)?.address || "")
+            // Consignee address
+            await setInputByLabel("收货人地址", getContactByType(2, data)?.address || "")
+            // Notify party address
+            await setInputByLabel("通知人地址", getContactByType(true, data)?.address || "")
+            // Shipper country code
+            // await setInputByLabel("发货人国家代码", getContactByType(false)?.country || "")
+            await chooseSelectByLabel(
+                "发货人国家代码",
+                getContactByType(false, data)?.country || "",
+                getContactByType(false, data)?.country || "",
+                10
+            )
+            // Consignee country code
+            // await setInputByLabel("收货人国家代码", getContactByType(2)?.country || "")
+            await chooseSelectByLabel("收货人国家代码", getContactByType(2, data)?.country || "", getContactByType(2, data)?.country || "", 11)
+            // Notify party country code
+            // await setInputByLabel("通知人国家代码", getContactByType(true)?.country || "")
+            await chooseSelectByLabel("通知人国家代码", getContactByType(true, data)?.country || "", getContactByType(true, data)?.country || "", 12)
+            // Shipper phone
+            await setInputByLabel("发货人电话", getContactByType(false, data)?.phone || "")
+            // Consignee phone
+            await setInputByLabel("收货人电话", getContactByType(2, data)?.phone || "")
+            // Notify party phone
+            await setInputByLabel("通知人电话", getContactByType(true, data)?.phone || "")
 
-            async () => {
-                try {
-                    // ship name
-                    const shipNameFull = `${data.shipName}/${data.voyage}`
-                    await chooseSelectByLabel("船名航次", data.shipName, shipNameFull, 2)
-                    // Loading port
-                    await chooseSelectByLabel("装货港", data.loadCode, `${data.loadCode}/${data.loadPortData.nameEn}`, 3)
-                    // Discharge port
-                    await chooseSelectByLabel("卸货港", data.uploadCode, `${data.uploadCode}/${data.uploadPortData.nameEn}`, 4)
-                    // Payment method
-                    await selectPaymentMethod("付款方式", "PREPAID", 5)
-                    // Carrier
-                    await selectPaymentMethod("提单承运人", carrierCode, 6)
-                    // BL No
-                    const blNoInput = document.querySelector(".el-input__inner") as HTMLInputElement
-                    setNativeValue(blNoInput, data.blNo)
-                    // Destination port
-                    await chooseSelectByLabel("目的港", data.aimPortCode, `${data.aimPortCode}/${data.aimPortData.nameEn}`, 7)
-                    // Service terms
-                    await selectPaymentMethod("服务条款", transportTerm, 8)
-                    // BL type
-                    await selectPaymentMethod("提单性质", "正常", 9)
-                    // Shipper
-                    await setTextareaByLabel("发货人", getContactByType(false, data)?.master || "")
-                    // Consignee
-                    await setTextareaByLabel("收货人", getContactByType(2, data)?.master || "")
-                    // Notify party
-                    await setTextareaByLabel("通知人", getContactByType(true, data)?.master || "")
-                    // Shipper address
-                    await setInputByLabel("发货人地址", getContactByType(false, data)?.address || "")
-                    // Consignee address
-                    await setInputByLabel("收货人地址", getContactByType(2, data)?.address || "")
-                    // Notify party address
-                    await setInputByLabel("通知人地址", getContactByType(true, data)?.address || "")
-                    // Shipper country code
-                    // await setInputByLabel("发货人国家代码", getContactByType(false)?.country || "")
-                    await chooseSelectByLabel(
-                        "发货人国家代码",
-                        getContactByType(false, data)?.country || "",
-                        getContactByType(false, data)?.country || "",
-                        10
-                    )
-                    // Consignee country code
-                    // await setInputByLabel("收货人国家代码", getContactByType(2)?.country || "")
-                    await chooseSelectByLabel(
-                        "收货人国家代码",
-                        getContactByType(2, data)?.country || "",
-                        getContactByType(2, data)?.country || "",
-                        11
-                    )
-                    // Notify party country code
-                    // await setInputByLabel("通知人国家代码", getContactByType(true)?.country || "")
-                    await chooseSelectByLabel(
-                        "通知人国家代码",
-                        getContactByType(true, data)?.country || "",
-                        getContactByType(true, data)?.country || "",
-                        12
-                    )
-                    // Shipper phone
-                    await setInputByLabel("发货人电话", getContactByType(false, data)?.phone || "")
-                    // Consignee phone
-                    await setInputByLabel("收货人电话", getContactByType(2, data)?.phone || "")
-                    // Notify party phone
-                    await setInputByLabel("通知人电话", getContactByType(true, data)?.phone || "")
+            // Goods
+            for (const good of data.cdgoods) {
+                await waitUntil(() => !!document.querySelector(".el-button.el-button--primary.el-button--small"))
+                const buttonNewContact = document.querySelector(".el-button.el-button--primary.el-button--small") as HTMLElement
+                buttonNewContact.click()
 
-                    // Goods
-                    for (const good of data.cdgoods) {
-                        await waitUntil(
-                            () => !!document.querySelector(".el-button.el-button--primary.el-button--small"),
-                            () => {
-                                const buttonNewContact = document.querySelector(".el-button.el-button--primary.el-button--small") as HTMLElement
-                                buttonNewContact.click()
-                            }
-                        )
+                // Amount
+                await waitUntil(() => {
+                    const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
+                        (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "件数"
+                    ) as HTMLElement
 
-                        // Amount
-                        await waitUntil(
-                            () => {
-                                const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
-                                    (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "件数"
-                                ) as HTMLElement
-
-                                if (!formItem) {
-                                    return false
-                                }
-
-                                return true
-                            },
-                            async () => {
-                                await setInputByLabel("件数", good.amount)
-                            }
-                        )
-                        // Weight
-                        await waitUntil(
-                            () => {
-                                const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
-                                    (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "重量 KGS"
-                                ) as HTMLElement
-
-                                if (!formItem) {
-                                    return false
-                                }
-                                return true
-                            },
-                            async () => {
-                                await setInputByLabel("重量 KGS", good.weight)
-                            }
-                        )
-                        // Volume
-                        await waitUntil(
-                            () => {
-                                const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
-                                    (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "体积(立方米)"
-                                ) as HTMLElement
-
-                                if (!formItem) {
-                                    return false
-                                }
-                                return true
-                            },
-                            async () => {
-                                await setInputByLabel("体积(立方米)", good.volume)
-                            }
-                        )
-                        // Goods name
-                        await waitUntil(
-                            () => {
-                                const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
-                                    (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "品名"
-                                ) as HTMLElement
-
-                                if (!formItem) {
-                                    return false
-                                }
-                                return true
-                            },
-                            async () => {
-                                await setTextareaByLabel("品名", good.name)
-                            }
-                        )
-                        // Mark
-                        await waitUntil(
-                            () => {
-                                const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
-                                    (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "唛头"
-                                ) as HTMLElement
-
-                                if (!formItem) {
-                                    return false
-                                }
-                                return true
-                            },
-                            async () => {
-                                await setTextareaByLabel("唛头", good.shantou)
-                            }
-                        )
-                        // Pack type
-                        await waitUntil(
-                            () => {
-                                const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
-                                    (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "包装类型名称"
-                                ) as HTMLElement
-                                console.log("formItem", formItem)
-                                if (!formItem) {
-                                    return false
-                                }
-                                return true
-                            },
-                            async () => {
-                                const select = document.querySelectorAll(".el-popper.is-pure.is-light.el-select__popper") as NodeListOf<HTMLElement>
-                                const index = select.length - 1
-                                await chooseSelectByLabel("包装类型名称", good.unit, good.unit, index)
-                            }
-                        )
-
-                        // Cargo type
-                        await waitUntil(
-                            () => {
-                                const radio = document.querySelector(".el-radio") as HTMLElement
-                                return radio ? true : false
-                            },
-                            async () => {
-                                const cargoType = good.cargoType === false ? "普通" : "危险品"
-                                await selectRadioByLabel(cargoType)
-                            }
-                        )
-
-                        // await sleep(10000)
-                        // Save
-                        const buttonCreate = Array.from(document.querySelectorAll(".el-button.el-button--primary.el-button--default")).find(
-                            (item) => item.querySelector(".el-button__text--expand")?.textContent?.trim() === "保存"
-                        ) as HTMLElement
-                        console.log("buttonCreate", buttonCreate)
-                        buttonCreate.click()
+                    if (!formItem) {
+                        return false
                     }
 
-                    // containner_vgms
-                    for (const container of data.cdCon) {
-                        const buttonCreate = document.querySelector(".vxe-button.type--button.size--mini.theme--primary") as HTMLElement
-                        console.log("buttonCreate", buttonCreate)
-                        buttonCreate.click()
-                        await sleep(3000)
+                    return true
+                })
+                await setInputByLabel("件数", good.amount)
+                // Weight
+                await waitUntil(() => {
+                    const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
+                        (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "重量 KGS"
+                    ) as HTMLElement
 
-                        //container number
-                        let input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-                        setNativeValue(input, container.boxNub || "")
-                        await sleep(500)
-
-                        // seal number
-                        const clickSelect = document.querySelector(".vxe-body--column.col_26") as HTMLElement
-                        clickSelect.click()
-                        await sleep(500)
-                        input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-                        setNativeValue(input, container.sealNUb || "")
-                        await sleep(500)
-
-                        // size
-                        const clickSelectSize = document.querySelector(".vxe-body--column.col_27") as HTMLElement
-                        clickSelectSize.click()
-                        await sleep(500)
-                        input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-                        input.click()
-                        await sleep(1000)
-
-                        console.log("size", container.size)
-
-                        const optionSize = Array.from(document.querySelectorAll(".vxe-select-option")).find(
-                            (x) => x.textContent === container.size
-                        ) as HTMLElement
-
-                        console.log("optionSize", optionSize)
-                        optionSize.click()
-                        await sleep(1000)
-
-                        // Type
-                        const clickSelectType = document.querySelector(".vxe-body--column.col_28") as HTMLElement
-                        clickSelectType.click()
-                        await sleep(500)
-                        const selectType = document.querySelectorAll(".el-select__selection")[11] as HTMLInputElement
-                        selectType.click()
-                        console.log("selectType", selectType)
-                        await sleep(1000)
-                        await chooseSelect(container.type, 25)
-                        await sleep(1000)
-
-                        // status
-                        const clickSelectStatus = document.querySelector(".vxe-body--column.col_29") as HTMLElement
-                        clickSelectStatus.click()
-                        await sleep(500)
-                        input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-                        input.click()
-                        const status = "F"
-                        await sleep(1000)
-                        const optionStatus = Array.from(document.querySelectorAll(".vxe-select-option")).find(
-                            (x) => x.textContent === status
-                        ) as HTMLElement
-                        console.log("optionStatus", optionStatus)
-                        optionStatus.click()
-                        await sleep(1000)
-
-                        // amount
-                        const clickSelectAmount = document.querySelector(".vxe-body--column.col_30") as HTMLElement
-                        clickSelectAmount.click()
-                        await sleep(500)
-                        input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-                        setNativeValue(input, container.amount || 0)
-                        await sleep(500)
-
-                        // weight
-                        const clickSelectWeight = document.querySelector(".vxe-body--column.col_31") as HTMLElement
-                        clickSelectWeight.click()
-                        await sleep(500)
-                        input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-                        setNativeValue(input, container.weight || 0)
-                        await sleep(500)
-
-                        // volume
-                        const clickSelectVolume = document.querySelector(".vxe-body--column.col_32") as HTMLElement
-                        clickSelectVolume.click()
-                        await sleep(500)
-                        input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-                        setNativeValue(input, container.volume || 0)
-                        await sleep(500)
+                    if (!formItem) {
+                        return false
                     }
+                    return true
+                })
+                await setInputByLabel("重量 KGS", good.weight)
+                // Volume
+                await waitUntil(() => {
+                    const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
+                        (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "体积(立方米)"
+                    ) as HTMLElement
 
-                    await clickButtonByLabel("作为草稿保存")
-
-                    await sleep(3000)
-                    // Change status manifest
-                    const isSuccess = await changeStatusManifest(blNo)
-                    if (isSuccess) {
-                        console.log("Change status manifest success")
-                    } else {
-                        console.error("Change status manifest failed")
+                    if (!formItem) {
+                        return false
                     }
+                    return true
+                })
+                await setInputByLabel("体积(立方米)", good.volume)
 
-                    // Add log manifest
-                    const isSuccessLog = await addLogManifest(blNo, username, carrierCode)
-                    if (isSuccessLog) {
-                        console.log("Add log manifest success")
-                    } else {
-                        console.error("Add log manifest failed")
+                // Goods name
+                await waitUntil(() => {
+                    const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
+                        (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "品名"
+                    ) as HTMLElement
+
+                    if (!formItem) {
+                        return false
                     }
+                    return true
+                })
+                await setTextareaByLabel("品名", good.name)
+                // Mark
+                await waitUntil(() => {
+                    const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
+                        (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "唛头"
+                    ) as HTMLElement
 
-                    chrome.storage.local.set({
-                        started: false,
-                    })
-                } catch (error) {
-                    console.error("Error:", error)
-                }
+                    if (!formItem) {
+                        return false
+                    }
+                    return true
+                })
+                await setTextareaByLabel("唛头", good.shantou)
+                // Pack type
+                await waitUntil(() => {
+                    const formItem = Array.from(document.querySelectorAll(".el-form-item")).find(
+                        (item) => item.querySelector(".el-form-item__label")?.textContent?.trim() === "包装类型名称"
+                    ) as HTMLElement
+                    console.log("formItem", formItem)
+                    if (!formItem) {
+                        return false
+                    }
+                    return true
+                })
+                const select = document.querySelectorAll(".el-popper.is-pure.is-light.el-select__popper") as NodeListOf<HTMLElement>
+                const index = select.length - 1
+                await chooseSelectByLabel("包装类型名称", good.unit, good.unit, index)
+
+                // Cargo type
+                await waitUntil(() => {
+                    const radio = document.querySelector(".el-radio") as HTMLElement
+                    return radio ? true : false
+                })
+                const cargoType = good.cargoType === false ? "普通" : "危险品"
+                await selectRadioByLabel(cargoType)
+
+                // await sleep(10000)
+                // Save
+                const buttonCreate = Array.from(document.querySelectorAll(".el-button.el-button--primary.el-button--default")).find(
+                    (item) => item.querySelector(".el-button__text--expand")?.textContent?.trim() === "保存"
+                ) as HTMLElement
+                console.log("buttonCreate", buttonCreate)
+                buttonCreate.click()
             }
-        )
+
+            // containner_vgms
+            for (const container of data.cdCon) {
+                const buttonCreate = document.querySelector(".vxe-button.type--button.size--mini.theme--primary") as HTMLElement
+                console.log("buttonCreate", buttonCreate)
+                buttonCreate.click()
+                await sleep(3000)
+
+                //container number
+                let input = document.querySelector(".vxe-input--inner") as HTMLInputElement
+                setNativeValue(input, container.boxNub || "")
+                await sleep(500)
+
+                // seal number
+                const selectAll = document.querySelectorAll(".vxe-cell--label") as NodeListOf<HTMLElement>
+                const clickSelect = selectAll[0] as HTMLElement
+                clickSelect.click()
+                await sleep(500)
+                input = document.querySelector(".vxe-input--inner") as HTMLInputElement
+                setNativeValue(input, container.sealNUb || "")
+                await sleep(500)
+
+                // size
+                const clickSelectSize = selectAll[1] as HTMLElement
+                clickSelectSize.click()
+                await sleep(500)
+                input = document.querySelector(".vxe-input--inner") as HTMLInputElement
+                input.click()
+                await sleep(1000)
+
+                console.log("size", container.size)
+
+                const optionSize = Array.from(document.querySelectorAll(".vxe-select-option")).find(
+                    (x) => x.textContent === container.size
+                ) as HTMLElement
+
+                console.log("optionSize", optionSize)
+                optionSize.click()
+                await sleep(1000)
+
+                // Type
+                const clickSelectType = selectAll[2] as HTMLElement
+                clickSelectType.click()
+                await sleep(500)
+                const selectType = document.querySelectorAll(".el-select__selection")[11] as HTMLInputElement
+                selectType.click()
+                console.log("selectType", selectType)
+                await sleep(1000)
+
+                await chooseSelect(container.type, 14)
+                await sleep(1000)
+
+                // status
+                const clickSelectStatus = selectAll[3] as HTMLElement
+                clickSelectStatus.click()
+                await sleep(500)
+                input = document.querySelector(".vxe-input--inner") as HTMLInputElement
+                input.click()
+                const status = "F"
+                await sleep(1000)
+                const optionStatus = Array.from(document.querySelectorAll(".vxe-select-option")).find((x) => x.textContent === status) as HTMLElement
+                console.log("optionStatus", optionStatus)
+                optionStatus.click()
+                await sleep(1000)
+
+                // amount
+                const clickSelectAmount = selectAll[4] as HTMLElement
+                clickSelectAmount.click()
+                await sleep(500)
+                input = document.querySelector(".vxe-input--inner") as HTMLInputElement
+                setNativeValue(input, container.amount || 0)
+                await sleep(500)
+
+                // weight
+                const clickSelectWeight = selectAll[5] as HTMLElement
+                clickSelectWeight.click()
+                await sleep(500)
+                input = document.querySelector(".vxe-input--inner") as HTMLInputElement
+                setNativeValue(input, container.weight || 0)
+                await sleep(500)
+
+                // volume
+                const clickSelectVolume = selectAll[6] as HTMLElement
+                clickSelectVolume.click()
+                await sleep(500)
+                input = document.querySelector(".vxe-input--inner") as HTMLInputElement
+                setNativeValue(input, container.volume || 0)
+                await sleep(500)
+            }
+
+            await clickButtonByLabel("作为草稿保存")
+
+            await sleep(3000)
+            // Change status manifest
+            const isSuccess = await changeStatusManifest(blNo)
+            if (isSuccess) {
+                console.log("Change status manifest success")
+            } else {
+                console.error("Change status manifest failed")
+            }
+
+            // Add log manifest
+            const isSuccessLog = await addLogManifest(blNo, username, carrierCode)
+            if (isSuccessLog) {
+                console.log("Add log manifest success")
+            } else {
+                console.error("Add log manifest failed")
+            }
+
+            chrome.storage.local.set({
+                started: false,
+            })
+        } catch (error) {
+            console.error("Error:", error)
+        }
     }, 1000)
 }
 
@@ -688,24 +633,11 @@ async function waitForOption(selectPopper: HTMLElement, full: string, timeout = 
 }
 
 async function chooseSelect(value: string, i: number) {
-    const selectPoppers = document.querySelectorAll(".el-popper.is-pure.is-light.el-select__popper") as NodeListOf<HTMLElement>
-    // console.log("selectPoppers", selectPoppers)
+    const selectPopper = await waitForSelectPopper(i)
 
-    const selectPopper = selectPoppers[i] as HTMLElement
-    console.log("selectPopper", selectPopper)
-    const option = Array.from(selectPopper.querySelectorAll(".el-select-dropdown__item")).find((x) =>
-        x.textContent?.toUpperCase().includes(value.toUpperCase())
-    ) as HTMLElement
-    console.log("option", option)
-    if (!option) throw Error(`missing ${value}`)
+    const option = await waitForOption(selectPopper, value)
 
     option.click()
-
-    document.body.click()
-
-    await sleep(1000)
-
-    console.log("Selected", value)
 
     return true
 }
