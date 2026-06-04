@@ -139,6 +139,12 @@ async function getData(blNo: string) {
     if (data.data.data.aimPortData.nameEn === "BUSAN") {
         data.data.data.aimPortData.nameEn = "PUSAN"
     }
+    if (data.data.data.uploadPortData.nameEn === "ICD HYDERABAD") {
+        data.data.data.uploadPortData.nameEn = "HYDERABAD"
+    }
+    if (data.data.data.aimPortData.nameEn === "ICD HYDERABAD") {
+        data.data.data.aimPortData.nameEn = "HYDERABAD"
+    }
 
     for (const good of data.data.data.cdgoods) {
         const unit = good.unit?.trim()?.toUpperCase()
