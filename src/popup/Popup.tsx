@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import "../App.css"
 
 function Popup() {
     const loginUrl = "https://www.unisco.com.cn/#/login"
@@ -58,21 +59,49 @@ function Popup() {
     }
 
     return (
-        <div
-            style={{
-                padding: 12,
-                width: 300,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-            }}
-        >
-            <input type='text' placeholder='Username' value={username} onChange={(e) => setUsername(e.target.value)} />
+        <div className="popup-container">
+            <div className="popup-header">
+                <h1>🚀 UNISCO Manifest</h1>
+                <p>Nhập thông tin để bắt đầu</p>
+            </div>
 
-            <input type='text' placeholder='BL No' value={blNo} onChange={(e) => setBlNo(e.target.value)} />
+            <div className="form-group">
+                <label>Username</label>
+                <input
+                    type="text"
+                    placeholder="Nhập username..."
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                />
+            </div>
 
-            <input type='text' placeholder='Carrier Code' value={carrierCode} onChange={(e) => setCarrierCode(e.target.value)} />
-            <button onClick={start}>Start</button>
+            <div className="form-group">
+                <label>BL No</label>
+                <input
+                    type="text"
+                    placeholder="Nhập số vận đơn..."
+                    value={blNo}
+                    onChange={(e) => setBlNo(e.target.value)}
+                />
+            </div>
+
+            <div className="form-group">
+                <label>Carrier Code</label>
+                <input
+                    type="text"
+                    placeholder="Nhập mã carrier..."
+                    value={carrierCode}
+                    onChange={(e) => setCarrierCode(e.target.value)}
+                />
+            </div>
+
+            <button className="start-button" onClick={start}>
+                ▶️ Bắt đầu
+            </button>
+
+            <div className="popup-footer">
+                <span>Unisco Auto Manifest v1.0</span>
+            </div>
         </div>
     )
 }
