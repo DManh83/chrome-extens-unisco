@@ -123,8 +123,8 @@ async function waitManifestReady() {
     })
     const btns = document.querySelectorAll(".el-button.el-button--primary") as NodeListOf<HTMLElement>
     btns[2]?.click()
-    chrome.storage.local.get(["blNo", "carrierCode", "username"], async (result) => {
-        await importData(result.blNo as string, result.carrierCode as string, result.username as string)
+    chrome.storage.local.get(["blNo", "username"], async (result) => {
+        await importData(result.blNo as string, result.username as string)
     })
 }
 
@@ -164,6 +164,13 @@ async function getData(blNo: string) {
         con.type = con.cType.match(/[A-Za-z]+/)?.[0] || ""
     }
 
+    if (data.data.data.carrier.code === "TSL") {
+        data.data.data.carrier.code = "TSC"
+    }
+    if (data.data.data.carrier.code === "ZHONGGU") {
+        data.data.data.carrier.code = "ZGXL"
+    }
+
     return data.data.data
 }
 
@@ -193,7 +200,7 @@ function getCType(cType: number) {
     return containerNumberMap[cType as keyof typeof containerNumberMap]
 }
 
-async function importData(blNo: string, carrierCode: string, username: string) {
+async function importData(blNo: string, username: string) {
     const ystObj = () => {
         return {
             1: "CY-CY",
@@ -253,7 +260,7 @@ async function importData(blNo: string, carrierCode: string, username: string) {
             // Payment method
             await selectPaymentMethod("付款方式", "PREPAID", 5)
             // Carrier
-            await selectPaymentMethod("提单承运人", carrierCode, 6)
+            await selectPaymentMethod("提单承运人", data.carrier.code, 6)
             // BL No
             const blNoInput = document.querySelector(".el-input__inner") as HTMLInputElement
             setNativeValue(blNoInput, data.blNo)
@@ -266,15 +273,15 @@ async function importData(blNo: string, carrierCode: string, username: string) {
             // Shipper
             await setTextareaByLabel("发货人", getContactByType(false, data)?.master || "")
             // Consignee
-            await setTextareaByLabel("收货人", getContactByType(2, data)?.master || "")
+            await setTextareaByLabel("收货人", getContactByType(true, data)?.master || "")
             // Notify party
-            await setTextareaByLabel("通知人", getContactByType(true, data)?.master || "")
+            await setTextareaByLabel("通知人", getContactByType(2, data)?.master || "")
             // Shipper address
             await setInputByLabel("发货人地址", getContactByType(false, data)?.address || "")
             // Consignee address
-            await setInputByLabel("收货人地址", getContactByType(2, data)?.address || "")
+            await setInputByLabel("收货人地址", getContactByType(true, data)?.address || "")
             // Notify party address
-            await setInputByLabel("通知人地址", getContactByType(true, data)?.address || "")
+            await setInputByLabel("通知人地址", getContactByType(2, data)?.address || "")
             // Shipper country code
             // await setInputByLabel("发货人国家代码", getContactByType(false)?.country || "")
             await chooseSelectByLabel(
@@ -460,29 +467,29 @@ async function importData(blNo: string, carrierCode: string, username: string) {
                 optionStatus.click()
                 await sleep(1000)
 
-                // amount
-                const clickSelectAmount = selectAll[4] as HTMLElement
-                clickSelectAmount.click()
-                await sleep(500)
-                input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-                setNativeValue(input, container.amount || 0)
-                await sleep(500)
+                // // amount
+                // const clickSelectAmount = selectAll[4] as HTMLElement
+                // clickSelectAmount.click()
+                // await sleep(500)
+                // input = document.querySelector(".vxe-input--inner") as HTMLInputElement
+                // setNativeValue(input, container.amount || 0)
+                // await sleep(500)
 
-                // weight
-                const clickSelectWeight = selectAll[5] as HTMLElement
-                clickSelectWeight.click()
-                await sleep(500)
-                input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-                setNativeValue(input, container.weight || 0)
-                await sleep(500)
+                // // weight
+                // const clickSelectWeight = selectAll[5] as HTMLElement
+                // clickSelectWeight.click()
+                // await sleep(500)
+                // input = document.querySelector(".vxe-input--inner") as HTMLInputElement
+                // setNativeValue(input, container.weight || 0)
+                // await sleep(500)
 
-                // volume
-                const clickSelectVolume = selectAll[6] as HTMLElement
-                clickSelectVolume.click()
-                await sleep(500)
-                input = document.querySelector(".vxe-input--inner") as HTMLInputElement
-                setNativeValue(input, container.volume || 0)
-                await sleep(500)
+                // // volume
+                // const clickSelectVolume = selectAll[6] as HTMLElement
+                // clickSelectVolume.click()
+                // await sleep(500)
+                // input = document.querySelector(".vxe-input--inner") as HTMLInputElement
+                // setNativeValue(input, container.volume || 0)
+                // await sleep(500)
             }
 
             await clickButtonByLabel("作为草稿保存")
@@ -497,7 +504,7 @@ async function importData(blNo: string, carrierCode: string, username: string) {
             }
 
             // Add log manifest
-            const isSuccessLog = await addLogManifest(blNo, username, carrierCode)
+            const isSuccessLog = await addLogManifest(blNo, username, data.carrier.code)
             if (isSuccessLog) {
                 console.log("Add log manifest success")
             } else {

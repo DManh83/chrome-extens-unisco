@@ -5,13 +5,11 @@ function Popup() {
     const loginUrl = "https://www.unisco.com.cn/#/login"
 
     const [blNo, setBlNo] = useState("")
-    const [carrierCode, setCarrierCode] = useState("")
     const [username, setUsername] = useState("")
 
     useEffect(() => {
-        chrome.storage.local.get(["blNo", "carrierCode", "username"], (result) => {
+        chrome.storage.local.get(["blNo", "username"], (result) => {
             setBlNo((result.blNo as string) || "")
-            setCarrierCode((result.carrierCode as string) || "")
             setUsername((result.username as string) || "")
         })
     }, [])
@@ -20,7 +18,6 @@ function Popup() {
         chrome.storage.local.set({
             started: true,
             blNo,
-            carrierCode,
             username,
         })
 
@@ -59,51 +56,32 @@ function Popup() {
     }
 
     return (
-        <div className="popup-container">
-            <div className="popup-header">
+        <div className='popup-container'>
+            <div className='popup-header'>
                 <h1>🚀 UNISCO Manifest</h1>
                 <p>Nhập thông tin để bắt đầu</p>
             </div>
 
-            <div className="form-group">
+            <div className='form-group'>
                 <label>Username</label>
-                <input
-                    type="text"
-                    placeholder="Nhập username..."
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                />
+                <input type='text' placeholder='Nhập username...' value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} />
             </div>
 
-            <div className="form-group">
+            <div className='form-group'>
                 <label>BL No</label>
-                <input
-                    type="text"
-                    placeholder="Nhập số vận đơn..."
-                    value={blNo}
-                    onChange={(e) => setBlNo(e.target.value)}
-                />
+                <input type='text' placeholder='Nhập số vận đơn...' value={blNo} onChange={(e) => setBlNo(e.target.value.toUpperCase())} />
             </div>
 
-            <div className="form-group">
-                <label>Carrier Code</label>
-                <input
-                    type="text"
-                    placeholder="Nhập mã carrier..."
-                    value={carrierCode}
-                    onChange={(e) => setCarrierCode(e.target.value)}
-                />
-            </div>
-
-            <button className="start-button" onClick={start}>
+            <button className='start-button' onClick={start}>
                 ▶️ Bắt đầu
             </button>
 
-            <div className="popup-footer">
-                <span>Unisco Auto Manifest v1.0</span>
+            <div className='popup-footer'>
+                <span>Unisco Auto Manifest v2.0</span>
             </div>
         </div>
     )
 }
 
 export default Popup
+

@@ -11,6 +11,9 @@ export default defineManifest({
 
     action: {
         default_popup: "index.html",
+        default_icon: {
+            "32": "public/icons/icon.png",
+        },
     },
 
     background: {
